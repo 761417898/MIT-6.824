@@ -50,29 +50,34 @@ func TestReElection2A(t *testing.T) {
 	leader1 := cfg.checkOneLeader()
 
 	// if the leader disconnects, a new one should be elected.
+	fmt.Println("-------------------------------  one leader disconn ------------------")
 	cfg.disconnect(leader1)
 	cfg.checkOneLeader()
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	// if the old leader rejoins, that shouldn't
 	// disturb the old leader.
+	fmt.Println("-------------------------------  one leader reconn ------------------")
 	cfg.connect(leader1)
 	leader2 := cfg.checkOneLeader()
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	// if there's no quorum, no leader should
 	// be elected.
+	fmt.Println("-------------------------------  two disconn ------------------")
 	cfg.disconnect(leader2)
 	cfg.disconnect((leader2 + 1) % servers)
 	time.Sleep(2 * RaftElectionTimeout)
 	cfg.checkNoLeader()
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	// if a quorum arises, it should elect a leader.
+	fmt.Println("-------------------------------  one leader conn ------------------")
 	cfg.connect((leader2 + 1) % servers)
 	cfg.checkOneLeader()
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	// re-join of last node shouldn't prevent leader from existing.
+	fmt.Println("-------------------------------  two leader conn ------------------")
 	cfg.connect(leader2)
 	cfg.checkOneLeader()
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	fmt.Printf("  ... Passed\n")
 }
 
@@ -85,11 +90,12 @@ func TestBasicAgree2B(t *testing.T) {
 
 	iters := 3
 	for index := 1; index < iters+1; index++ {
+		//返回index处的命令有几个机器存在该命令
 		nd, _ := cfg.nCommitted(index)
 		if nd > 0 {
 			t.Fatalf("some have committed before Start()")
 		}
-
+		//指定要执行的命令和期望达到一致的机器数，返回该命令的序列号
 		xindex := cfg.one(index*100, servers)
 		if xindex != index {
 			t.Fatalf("got index %v but expected %v", xindex, index)
