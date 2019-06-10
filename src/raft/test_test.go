@@ -167,12 +167,13 @@ func TestFailNoAgree2B(t *testing.T) {
 	if n > 0 {
 		t.Fatalf("%v committed but no majority", n)
 	}
-
+fmt.Printf("repair disconnect\n")
+<- time.After(time.Duration(1550) * time.Millisecond)
 	// repair
 	cfg.connect((leader + 1) % servers)
 	cfg.connect((leader + 2) % servers)
 	cfg.connect((leader + 3) % servers)
-
+//<- time.After(time.Duration(15500) * time.Millisecond)
 	// the disconnected majority may have chosen a leader from
 	// among their own ranks, forgetting index 2.
 	// or perhaps
@@ -186,7 +187,6 @@ func TestFailNoAgree2B(t *testing.T) {
 	}
 
 	cfg.one(1000, servers)
-<- time.After(time.Duration(15500) * time.Millisecond)
 	fmt.Printf("  ... Passed\n")
 }
 
@@ -196,7 +196,7 @@ func TestConcurrentStarts2B(t *testing.T) {
 	defer cfg.cleanup()
 
 	fmt.Printf("Test (2B): concurrent Start()s ...\n")
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	var success bool
 loop:
 	for try := 0; try < 5; try++ {
@@ -289,9 +289,11 @@ loop:
 	}
 
 	fmt.Printf("  ... Passed\n")
+	
 }
 
 func TestRejoin2B(t *testing.T) {
+	//加上选举限制，确保各节点的commit顺序不会不一致
 	servers := 3
 	cfg := make_config(t, servers, false)
 	defer cfg.cleanup()
@@ -327,6 +329,7 @@ func TestRejoin2B(t *testing.T) {
 	cfg.one(105, servers)
 
 	fmt.Printf("  ... Passed\n")
+	
 }
 
 func TestBackup2B(t *testing.T) {

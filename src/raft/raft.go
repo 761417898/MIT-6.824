@@ -138,6 +138,8 @@ type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
 	Term int
 	CandidateId int
+	LastLogIndex int
+	LastLogTerm int
 }
 
 //
@@ -186,7 +188,10 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 	}
 	rf.currentTerm = args.Term
 	reply.Term = rf.currentTerm
-	uptodate := true 
+	uptodate := false 
+	if (args.LastLogTerm > rf.lastLogTerm) || (args.LastLogTerm == rf.lastLogTerm) && (args.LastLogIndex >= rf.lastLogTerm) {
+		uptodate = true
+	}
 	if uptodate && (rf.voteFor == -1 || rf.voteFor == args.CandidateId) {
 		rf.voteFor = args.CandidateId
 		reply.VoteGranted = true
@@ -242,7 +247,7 @@ func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply)
 			reply.Success = false
 			return
 		} else {
-			//检测日志是否一致,若在i位置一致，则把发来的日志加到i后面，否则返回false
+			//检测日志是否一致,若在i位置一致，则把发来的日志加到i后面，否则false
 			var i int
 			consist := false
 			for i = len(rf.log) - 1; i >= 0; i-- {
@@ -348,7 +353,10 @@ func (rf *Raft) sendAppendEntries(server int, args AppendEntriesArgs, reply *App
 		//fmt.Println("-------------------------------  MATCH INDEX CHANGED *****************************************")
 		}
 	} else {
-		rf.nextIndex[server]-- //= reply.NextIndex
+		
+		if rf.nextIndex[server] > 0 {
+			rf.nextIndex[server]-- //= reply.NextIndex
+		}
 	} 
 	return ok
 }
@@ -416,6 +424,8 @@ func (rf *Raft) broadcastRequestVotes() {
 		var args RequestVoteArgs
 		args.CandidateId = rf.me
 		args.Term = rf.currentTerm
+		args.LastLogIndex = rf.lastLogIndex
+		args.LastLogTerm = rf.lastLogTerm
 		var reply RequestVoteReply
 		reply.VoteGranted = false
 		go rf.sendRequestVote(server, args, &reply)
@@ -423,6 +433,7 @@ func (rf *Raft) broadcastRequestVotes() {
 }
 
 func (rf *Raft) broadcastAppendEntries() {
+	//外面已经加锁了
 	oldCommitIndex := rf.commitIndex
 	//检测是否复制到大多数机器上
 	for i := 0; i < len(rf.matchIndex); i++ {
@@ -460,14 +471,16 @@ func (rf *Raft) broadcastAppendEntries() {
 			args.PrevLogTerm = 0
 		} else {
 			baseIndex := rf.log[0].Index
+			//fmt.Println("log len = ", len(rf.log), i, rf.nextIndex[i], baseIndex)
 			args.Entries = rf.log[rf.nextIndex[i] - baseIndex - 1:]
 			//fmt.Println(args.Entries[0].Index)
-			if rf.lastLogIndex == baseIndex {
+			if rf.lastLogIndex == baseIndex || (rf.nextIndex[i] - baseIndex - 1) == 0{
 				//要发送的日志的第一个条目正好是　rf.log[0]，prev设置为-1
 				args.PrevLogIndex = -1
 				args.PrevLogTerm = -1
 			} else {
 				prevLogArrayIndex := rf.nextIndex[i] - baseIndex - 2
+				//fmt.Println("log len = ", len(rf.log), "preLogArrayIndex = ", prevLogArrayIndex, rf.nextIndex[i], baseIndex)
 				args.PrevLogIndex = rf.log[prevLogArrayIndex].Index
 				args.PrevLogTerm = rf.log[prevLogArrayIndex].Term 
 			}
@@ -511,11 +524,11 @@ func (rf *Raft) electionDaemon() {
 			rf.mu.Lock()
 			rf.nextIndex = make([]int, len(rf.peers))
 			rf.matchIndex = make([]int, len(rf.peers))
-			rf.broadcastAppendEntries()
 			for i := range rf.peers {
 				rf.nextIndex[i] = rf.lastLogIndex + 1
 				rf.matchIndex[i] = 0
 			}
+			rf.broadcastAppendEntries()
 			rf.mu.Unlock()
 			for rf.role == Leader {
 				select {
