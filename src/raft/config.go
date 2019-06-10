@@ -155,6 +155,7 @@ func (cfg *config) start1(i int) {
 			if m.UseSnapshot {
 				// ignore the snapshot
 			} else if v, ok := (m.Command).(int); ok {
+				//fmt.Println("******************************** receive applych  *************************************")
 				cfg.mu.Lock()
 				for j := 0; j < len(cfg.logs); j++ {
 					if old, oldok := cfg.logs[j][m.Index]; oldok && old != v {
@@ -414,7 +415,10 @@ func (cfg *config) one(cmd int, expectedServers int) int {
 			// submitted our command; wait a while for agreement.
 			t1 := time.Now()
 			for time.Since(t1).Seconds() < 2 {
+				<- time.After(time.Duration(500) * time.Millisecond)
 				nd, cmd1 := cfg.nCommitted(index)
+				fmt.Println("------------------------------------Debug: ", nd, cmd1.(int), index,"------------------------------" )
+//	<- time.After(time.Duration(15500) * time.Millisecond)
 				if nd > 0 && nd >= expectedServers {
 					// committed
 					if cmd2, ok := cmd1.(int); ok && cmd2 == cmd {

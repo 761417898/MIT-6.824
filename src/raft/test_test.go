@@ -87,7 +87,7 @@ func TestBasicAgree2B(t *testing.T) {
 	defer cfg.cleanup()
 
 	fmt.Printf("Test (2B): basic agreement ...\n")
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	iters := 3
 	for index := 1; index < iters+1; index++ {
 		//返回index处的命令有几个机器存在该命令
@@ -96,6 +96,8 @@ func TestBasicAgree2B(t *testing.T) {
 			t.Fatalf("some have committed before Start()")
 		}
 		//指定要执行的命令和期望达到一致的机器数，返回该命令的序列号
+		fmt.Println("-------------------------------  add cmd", index*100, "-------------------------")
+		<- time.After(time.Duration(1550) * time.Millisecond)
 		xindex := cfg.one(index*100, servers)
 		if xindex != index {
 			t.Fatalf("got index %v but expected %v", xindex, index)
@@ -111,7 +113,7 @@ func TestFailAgree2B(t *testing.T) {
 	defer cfg.cleanup()
 
 	fmt.Printf("Test (2B): agreement despite follower disconnection ...\n")
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	cfg.one(101, servers)
 
 	// follower network disconnection
@@ -142,7 +144,7 @@ func TestFailNoAgree2B(t *testing.T) {
 	defer cfg.cleanup()
 
 	fmt.Printf("Test (2B): no agreement if too many followers disconnect ...\n")
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	cfg.one(10, servers)
 
 	// 3 of 5 followers disconnect
@@ -184,7 +186,7 @@ func TestFailNoAgree2B(t *testing.T) {
 	}
 
 	cfg.one(1000, servers)
-
+<- time.After(time.Duration(15500) * time.Millisecond)
 	fmt.Printf("  ... Passed\n")
 }
 
