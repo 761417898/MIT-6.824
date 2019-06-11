@@ -346,17 +346,17 @@ func TestBackup2B(t *testing.T) {
 	cfg.disconnect((leader1 + 2) % servers)
 	cfg.disconnect((leader1 + 3) % servers)
 	cfg.disconnect((leader1 + 4) % servers)
-
+//不能commit
 	// submit lots of commands that won't commit
 	for i := 0; i < 50; i++ {
 		cfg.rafts[leader1].Start(rand.Int())
 	}
 
 	time.Sleep(RaftElectionTimeout / 2)
-
+//此时leader1和leader1+1日志条目为51，但commit都为1
 	cfg.disconnect((leader1 + 0) % servers)
 	cfg.disconnect((leader1 + 1) % servers)
-
+//产生leader2，
 	// allow other partition to recover
 	cfg.connect((leader1 + 2) % servers)
 	cfg.connect((leader1 + 3) % servers)
@@ -366,7 +366,7 @@ func TestBackup2B(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		cfg.one(rand.Int(), 3)
 	}
-
+//leader2,leader2+1,leader2+2的commit为51，但从第２条目到第51条目与leader1,leader1+1不同
 	// now another partitioned leader and one follower
 	leader2 := cfg.checkOneLeader()
 	other := (leader1 + 2) % servers
@@ -374,34 +374,43 @@ func TestBackup2B(t *testing.T) {
 		other = (leader2 + 1) % servers
 	}
 	cfg.disconnect(other)
-
+//第二集群里断开一个follower
 	// lots more commands that won't commit
 	for i := 0; i < 50; i++ {
 		cfg.rafts[leader2].Start(rand.Int())
 	}
-
+//此时leader２和集群2里的另一个follow日志条目为101,commit还是51
 	time.Sleep(RaftElectionTimeout / 2)
 
 	// bring original leader back to life,
 	for i := 0; i < servers; i++ {
 		cfg.disconnect(i)
 	}
+	<- time.After(time.Duration(1550) * time.Millisecond)
+	fmt.Println("now connect leader1 leader1+1 other")
+//重新连接上leader1,leader1+1,集群2断开的follow(other),此时集群2断开的机器必然成为leader，因为他的日志最新
+//leader1,leader1+1，被覆盖掉自己之前未被提交的2~51，取而代之的是在集群2中被提交的2~51，此时，三个节点commit都是51	
 	cfg.connect((leader1 + 0) % servers)
 	cfg.connect((leader1 + 1) % servers)
 	cfg.connect(other)
-
+	fmt.Println("wait for agreement")
+	<- time.After(time.Duration(15500) * time.Millisecond)
 	// lots of successful commands to new group.
 	for i := 0; i < 50; i++ {
 		cfg.one(rand.Int(), 3)
 	}
+//新加入50条日志，这三个节点的commit变更到51+50=101	
 
 	// now everyone
 	for i := 0; i < servers; i++ {
 		cfg.connect(i)
 	}
+	fmt.Println("wait for agreement")
+	<- time.After(time.Duration(15500) * time.Millisecond)
 	cfg.one(rand.Int(), servers)
 
 	fmt.Printf("  ... Passed\n")
+	//<- time.After(time.Duration(155000) * time.Millisecond)
 }
 
 func TestCount2B(t *testing.T) {
@@ -425,7 +434,7 @@ func TestCount2B(t *testing.T) {
 	if total1 > 30 || total1 < 1 {
 		t.Fatalf("too many or few RPCs (%v) to elect initial leader\n", total1)
 	}
-
+//<- time.After(time.Duration(15500) * time.Millisecond)
 	var total2 int
 	var success bool
 loop:

@@ -511,7 +511,7 @@ func (rf *Raft) electionDaemon() {
 					//截止到超时还未处理成功，一是平票，二是断开连接，重置currentTerm
 					//单数节点，断开连接
 					rf.mu.Lock()
-					rf.currentTerm = 0
+					rf.currentTerm--
 					rf.voteFor = -1
 					rf.role = Follower
 					rf.mu.Unlock()
