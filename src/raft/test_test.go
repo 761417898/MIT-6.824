@@ -586,7 +586,7 @@ func TestPersist22C(t *testing.T) {
 	fmt.Printf("Test (2C): more persistence ...\n")
 
 	index := 1
-	for iters := 0; iters < 5; iters++ {
+	for iters := 0; iters < 1; iters++ {
 		fmt.Println(".....................", iters, "................................. ...")
 <- time.After(time.Duration(1550) * time.Millisecond)		
 		cfg.one(10+index, servers)
@@ -644,14 +644,15 @@ func TestPersist32C(t *testing.T) {
 	cfg.crash1((leader + 0) % servers)
 	cfg.crash1((leader + 1) % servers)
 	cfg.connect((leader + 2) % servers)
+<- time.After(time.Duration(1550) * time.Millisecond)		
 	cfg.start1((leader + 0) % servers)
 	cfg.connect((leader + 0) % servers)
-
+<- time.After(time.Duration(1550) * time.Millisecond)	
 	cfg.one(103, 2)
 
 	cfg.start1((leader + 1) % servers)
 	cfg.connect((leader + 1) % servers)
-
+<- time.After(time.Duration(1550) * time.Millisecond)	
 	cfg.one(104, servers)
 
 	fmt.Printf("  ... Passed\n")
@@ -706,6 +707,7 @@ func TestFigure82C(t *testing.T) {
 			if cfg.rafts[s] == nil {
 				cfg.start1(s)
 				cfg.connect(s)
+<- time.After(time.Duration(1550) * time.Millisecond)					
 				nup += 1
 			}
 		}
@@ -715,6 +717,7 @@ func TestFigure82C(t *testing.T) {
 		if cfg.rafts[i] == nil {
 			cfg.start1(i)
 			cfg.connect(i)
+<- time.After(time.Duration(1550) * time.Millisecond)				
 		}
 	}
 

@@ -453,8 +453,15 @@ func (rf *Raft) broadcastAppendEntries() {
 				count++
 			}
 		}
-		if count > len(rf.peers) / 2 && matIdx > rf.commitIndex {
-			rf.commitIndex = matIdx
+		if len(rf.log) > 0 {
+			baseIndex := rf.log[0].Index
+			if count > len(rf.peers) / 2 && matIdx > rf.commitIndex && rf.log[matIdx - baseIndex].Term == rf.currentTerm{
+				rf.commitIndex = matIdx
+			}
+		} else {
+			if count > len(rf.peers) / 2 && matIdx > rf.commitIndex {
+				rf.commitIndex = matIdx
+			}
 		}
 		if count > 1 {
 		//fmt.Println("-------------------------------  ",count,  rf.commitIndex, matIdx, oldCommitIndex," ****************************")
