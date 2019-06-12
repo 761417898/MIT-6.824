@@ -531,23 +531,30 @@ func TestPersist12C(t *testing.T) {
 	fmt.Printf("Test (2C): basic persistence ...\n")
 
 	cfg.one(11, servers)
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
 	// crash and re-start all
+//重启了，但还没连接	
+	fmt.Println("start")
 	for i := 0; i < servers; i++ {
 		cfg.start1(i)
 	}
+	<- time.After(time.Duration(1550) * time.Millisecond)
+	fmt.Println("reconnect")
 	for i := 0; i < servers; i++ {
+		fmt.Println(i, "restart")
 		cfg.disconnect(i)
 		cfg.connect(i)
 	}
-
+	<- time.After(time.Duration(1550) * time.Millisecond)
+	cfg.checkOneLeader()
+	
 	cfg.one(12, servers)
 
 	leader1 := cfg.checkOneLeader()
 	cfg.disconnect(leader1)
 	cfg.start1(leader1)
 	cfg.connect(leader1)
-
+<- time.After(time.Duration(1550) * time.Millisecond)
 	cfg.one(13, servers)
 
 	leader2 := cfg.checkOneLeader()
@@ -555,6 +562,7 @@ func TestPersist12C(t *testing.T) {
 	cfg.one(14, servers-1)
 	cfg.start1(leader2)
 	cfg.connect(leader2)
+<- time.After(time.Duration(1550) * time.Millisecond)	
 
 	cfg.wait(4, servers, -1) // wait for leader2 to join before killing i3
 
@@ -563,10 +571,11 @@ func TestPersist12C(t *testing.T) {
 	cfg.one(15, servers-1)
 	cfg.start1(i3)
 	cfg.connect(i3)
-
+<- time.After(time.Duration(1550) * time.Millisecond)	
 	cfg.one(16, servers)
 
 	fmt.Printf("  ... Passed\n")
+	//<- time.After(time.Duration(155000) * time.Millisecond)
 }
 
 func TestPersist22C(t *testing.T) {
@@ -578,6 +587,8 @@ func TestPersist22C(t *testing.T) {
 
 	index := 1
 	for iters := 0; iters < 5; iters++ {
+		fmt.Println(".....................", iters, "................................. ...")
+<- time.After(time.Duration(1550) * time.Millisecond)		
 		cfg.one(10+index, servers)
 		index++
 
@@ -588,7 +599,7 @@ func TestPersist22C(t *testing.T) {
 
 		cfg.one(10+index, servers-2)
 		index++
-
+<- time.After(time.Duration(1550) * time.Millisecond)
 		cfg.disconnect((leader1 + 0) % servers)
 		cfg.disconnect((leader1 + 3) % servers)
 		cfg.disconnect((leader1 + 4) % servers)
@@ -602,12 +613,13 @@ func TestPersist22C(t *testing.T) {
 
 		cfg.start1((leader1 + 3) % servers)
 		cfg.connect((leader1 + 3) % servers)
-
+<- time.After(time.Duration(1550) * time.Millisecond)
 		cfg.one(10+index, servers-2)
 		index++
 
 		cfg.connect((leader1 + 4) % servers)
 		cfg.connect((leader1 + 0) % servers)
+<- time.After(time.Duration(1550) * time.Millisecond)	
 	}
 
 	cfg.one(1000, servers)

@@ -23,8 +23,8 @@ import "time"
 import "math/rand"
 import "fmt"
 
-// import "bytes"
-// import "encoding/gob"
+ import "bytes"
+ import "encoding/gob"
 
 
 
@@ -104,12 +104,13 @@ func (rf *Raft) GetState() (int, bool) {
 func (rf *Raft) persist() {
 	// Your code here (2C).
 	// Example:
-	// w := new(bytes.Buffer)
-	// e := gob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
+	 w := new(bytes.Buffer)
+	 e := gob.NewEncoder(w)
+	 e.Encode(rf.currentTerm)
+	 e.Encode(rf.voteFor)
+	 e.Encode(rf.log)
+	 data := w.Bytes()
+	 rf.persister.SaveRaftState(data)
 }
 
 //
@@ -118,13 +119,14 @@ func (rf *Raft) persist() {
 func (rf *Raft) readPersist(data []byte) {
 	// Your code here (2C).
 	// Example:
-	// r := bytes.NewBuffer(data)
-	// d := gob.NewDecoder(r)
-	// d.Decode(&rf.xxx)
-	// d.Decode(&rf.yyy)
 	if data == nil || len(data) < 1 { // bootstrap without any state?
 		return
 	}
+	r := bytes.NewBuffer(data)
+	d := gob.NewDecoder(r)
+	d.Decode(&rf.currentTerm)
+	d.Decode(&rf.voteFor)
+	d.Decode(&rf.log)
 }
 
 
@@ -171,9 +173,10 @@ type AppendEntriesReply struct {
 // example RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
-	//fmt.Println("RequestVote ", args.CandidateId, " ", args.Term)
+	fmt.Println("RequestVote ", args.CandidateId, " ", args.Term)
 	// Your code here (2A, 2B).
 	rf.mu.Lock()
+	defer rf.persist()
 	defer rf.mu.Unlock()
 	reply.VoteGranted = false
 	if args.Term < rf.currentTerm {
@@ -186,6 +189,7 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 		rf.voteFor = -1
 		rf.elecTimeRefresh <- 0
 	}
+	
 	rf.currentTerm = args.Term
 	reply.Term = rf.currentTerm
 	uptodate := false 
@@ -210,7 +214,9 @@ func (rf *Raft) printLog() {
 
 func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) {
 	// Your code here (2A, 2B).
+	//fmt.Println(rf.me, "receive heartbeat")
 	rf.mu.Lock()
+	defer rf.persist()
 	defer rf.mu.Unlock()
 	reply.Success = false
 	if args.Term < rf.currentTerm {
@@ -317,6 +323,7 @@ func (rf *Raft) sendRequestVote(server int, args RequestVoteArgs, reply *Request
 	if reply.Term > rf.currentTerm {
 		rf.role = Follower
 		rf.currentTerm = reply.Term
+		rf.persist()
 		rf.elecTimeRefresh <- 0
 	} else {
 		//fmt.Println(reply.Term, reply.VoteGranted)
@@ -343,6 +350,7 @@ func (rf *Raft) sendAppendEntries(server int, args AppendEntriesArgs, reply *App
 	if reply.Term > rf.currentTerm {
 		rf.role = Follower
 		rf.currentTerm = reply.Term
+		rf.persist()
 		rf.elecTimeRefresh <- 0
 		return ok
 	}
@@ -387,7 +395,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	rf.lastLogIndex++
 	rf.lastLogTerm = rf.currentTerm
 	rf.log = append(rf.log, LogEntry{Index : rf.lastLogIndex, Term : rf.lastLogTerm, Command : command})
-
+	rf.persist()
 	index = rf.lastLogIndex
 	term = rf.lastLogTerm
 	isLeader = true
@@ -415,6 +423,7 @@ func (rf *Raft) broadcastRequestVotes() {
 	rf.currentTerm++
 	rf.voteFor = rf.me
 	rf.numVotes = 1
+	rf.persist()
 	rf.mu.Unlock()
 	for i := 0; i < len(rf.peers); i++ {
 		if i == rf.me {
@@ -514,6 +523,7 @@ func (rf *Raft) electionDaemon() {
 					rf.currentTerm--
 					rf.voteFor = -1
 					rf.role = Follower
+					rf.persist()
 					rf.mu.Unlock()
 				fmt.Println(rf.me, " term ", rf.currentTerm, " candidate timeout")
 				case <- rf.elecTimeRefresh:
@@ -529,7 +539,8 @@ func (rf *Raft) electionDaemon() {
 				rf.matchIndex[i] = 0
 			}
 			rf.broadcastAppendEntries()
-			rf.mu.Unlock()
+			rf.mu.Unlock() 
+		    
 			for rf.role == Leader {
 				select {
 					case <- time.After(time.Duration(rand.Int63() % 30 + 50) * time.Millisecond):
@@ -593,10 +604,22 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.lastApplied = 0
 	rf.lastLogIndex = 0
 	rf.lastLogTerm = 0
-	
+	rf.readPersist(persister.ReadRaftState())
+	if len(rf.log) > 0 {
+		if rf.voteFor == rf.me {
+			rf.role = Leader
+			rf.leader = rf.me
+			//rf.currentTerm++
+		} else {
+			rf.role = Follower
+		}
+		rf.lastLogIndex = rf.log[len(rf.log) - 1].Index
+		rf.lastLogTerm = rf.log[len(rf.log) - 1].Term
+		fmt.Println("------------------", rf.log[0].Index, "  ", rf.log[0].Term, " ", rf.voteFor, "  ", rf.currentTerm)
+	}
 	go rf.electionDaemon()
 	// initialize from state persisted before a crash
-	rf.readPersist(persister.ReadRaftState())
+	
 	go rf.logDaemon(applyCh)
 	
 	return rf
