@@ -6,6 +6,8 @@ import (
 	"log"
 	"raft"
 	"sync"
+	"fmt"
+	"time"
 )
 
 const Debug = 0
@@ -22,6 +24,11 @@ type Op struct {
 	// Your definitions here.
 	// Field names must start with capital letters,
 	// otherwise RPC will break.
+	PutAppend string
+	Id int64
+	ReqId int
+	Key string
+	Value string
 }
 
 type RaftKV struct {
@@ -33,15 +40,73 @@ type RaftKV struct {
 	maxraftstate int // snapshot if log grows this big
 
 	// Your definitions here.
+	db map[string]string
+	order map[int64]int //record reqId of each client
+	chs map[int64]chan Op
 }
 
+func (kv *RaftKV) writeToLog(entry Op) bool {
+	_, _, isLeader := kv.rf.Start(entry)
+	if !isLeader {
+		return false
+	}
+	fmt.Println("client : ", entry.Id, ", reqId : ", entry.ReqId, ", ", entry.PutAppend, ", key-value : ", entry.Key, " ", entry.Value)
+	clientId := entry.Id
+	reqId := entry.ReqId
+	
+	kv.mu.Lock()
+	ch,ok := kv.chs[clientId]
+	if !ok {
+		ch = make(chan Op,1)
+		kv.chs[clientId] = ch
+	}
+	kv.mu.Unlock()
+	select {
+		case <- time.After(time.Duration(5000) * time.Millisecond):
+			return false
+		case <- kv.chs[clientId]:
+			kv.mu.Lock()
+			kv.order[clientId] = reqId
+			kv.mu.Unlock()
+			return true		
+	}
+}
 
 func (kv *RaftKV) Get(args *GetArgs, reply *GetReply) {
 	// Your code here.
+	var op Op
+	op.Id = args.Id
+	op.Key = args.Key
+	op.PutAppend = "Get"
+	op.ReqId = args.ReqId
+	ok := kv.writeToLog(op)
+	if ok {
+		reply.IsSuccess = true
+		reply.Value = kv.db[args.Key]
+	} else {
+		reply.IsSuccess = false
+		reply.Value = ""
+	}
 }
 
 func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	// Your code here.
+	var op Op
+	op.Id = args.Id
+	op.Key = args.Key
+	op.ReqId = args.ReqId
+	op.Value = args.Value
+	if args.Op == "Put" {
+		op.PutAppend = "Put"
+	} else { //"Append"
+		op.PutAppend = "Append"
+	}
+	ok := kv.writeToLog(op)
+	if ok {
+		reply.IsSuccess = true
+	} else {
+		reply.IsSuccess = false
+	}
 }
 
 //
@@ -53,6 +118,16 @@ func (kv *RaftKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 func (kv *RaftKV) Kill() {
 	kv.rf.Kill()
 	// Your code here, if desired.
+}
+
+func (kv *RaftKV) apply(op Op) {
+	if op.PutAppend == "Put" {
+		kv.db[op.Key] = op.Value
+	} else if op.PutAppend == "Append" {
+		kv.db[op.Key] = kv.db[op.Key] + op.Value
+	} else {
+		
+	}
 }
 
 //
@@ -76,13 +151,35 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv := new(RaftKV)
 	kv.me = me
 	kv.maxraftstate = maxraftstate
-
+	kv.db = make(map[string]string)
+	kv.order = make(map[int64]int)
+	kv.chs = make(map[int64]chan Op)
 	// You may need initialization code here.
 
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 
 	// You may need initialization code here.
-
+	go func() {
+		for {
+			applyCh := <- kv.applyCh
+			op := applyCh.Command.(Op)
+			clientId := op.Id
+			reqId := op.ReqId
+			
+			kv.mu.Lock()
+			ch,ok := kv.chs[clientId]
+			if !ok {
+				ch = make(chan Op,1)
+				kv.chs[clientId] = ch
+			}
+			
+			if reqId >= kv.order[clientId] {
+				kv.apply(op)
+			}
+			kv.chs[clientId] <- op
+			kv.mu.Unlock()
+		}
+	}()
 	return kv
 }

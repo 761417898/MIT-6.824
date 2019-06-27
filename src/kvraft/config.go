@@ -12,6 +12,7 @@ import "sync"
 import "runtime"
 import "raft"
 import "fmt"
+import "time"
 
 func randstring(n int) string {
 	b := make([]byte, 2*n)
@@ -71,6 +72,7 @@ func (cfg *config) LogSize() int {
 func (cfg *config) SnapshotSize() int {
 	snapshotsize := 0
 	for i := 0; i < cfg.n; i++ {
+		fmt.Println("snapshotsize error")
 		n := cfg.saved[i].SnapshotSize()
 		if n > snapshotsize {
 			snapshotsize = n
@@ -361,6 +363,6 @@ func make_config(t *testing.T, tag string, n int, unreliable bool, maxraftstate 
 	cfg.ConnectAll()
 
 	cfg.net.Reliable(!unreliable)
-
+	<- time.After(time.Second * 1)
 	return cfg
 }
