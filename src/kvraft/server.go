@@ -66,7 +66,9 @@ func (kv *RaftKV) writeToLog(entry Op) bool {
 			return false
 		case <- kv.chs[clientId]:
 			kv.mu.Lock()
-			kv.order[clientId] = reqId
+			if reqId > kv.order[clientId] {
+				kv.order[clientId] = reqId
+			}
 			kv.mu.Unlock()
 			return true		
 	}
@@ -164,6 +166,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 		for {
 			applyCh := <- kv.applyCh
 			op := applyCh.Command.(Op)
+			
 			clientId := op.Id
 			reqId := op.ReqId
 			
@@ -174,10 +177,14 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 				kv.chs[clientId] = ch
 			}
 			
-			if reqId >= kv.order[clientId] {
+			if reqId > kv.order[clientId] {
 				kv.apply(op)
+				log.Println(kv.me, " LOG APPLY : ", "op.id : ", op.Id,  " op.reqId ", op.ReqId , "type", op.PutAppend)
 			}
-			kv.chs[clientId] <- op
+			_, isLeader := kv.rf.GetState()
+			if isLeader {
+				kv.chs[clientId] <- op
+			}
 			kv.mu.Unlock()
 		}
 	}()

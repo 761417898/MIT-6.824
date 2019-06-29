@@ -131,7 +131,7 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 	const nservers = 5
 	cfg := make_config(t, tag, nservers, unreliable, maxraftstate)
 	defer cfg.cleanup()
-
+<- time.After(time.Second * 2)
 	ck := cfg.makeClient(cfg.All())
 
 	done_partitioner := int32(0)
@@ -142,7 +142,7 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 		clnts[i] = make(chan int)
 	}
 	for i := 0; i < 3; i++ {
-		// log.Printf("Iteration %v\n", i)
+		log.Printf("Iteration %v\n", i)
 		atomic.StoreInt32(&done_clients, 0)
 		atomic.StoreInt32(&done_partitioner, 0)
 		go spawn_clients_and_wait(t, cfg, nclients, func(cli int, myck *Clerk, t *testing.T) {
@@ -156,17 +156,18 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 			for atomic.LoadInt32(&done_clients) == 0 {
 				if (rand.Int() % 1000) < 500 {
 					nv := "x " + strconv.Itoa(cli) + " " + strconv.Itoa(j) + " y"
-					// log.Printf("%d: client new append %v\n", cli, nv)
+				//	 log.Printf("%d: client new append %v\n", cli, nv)
 					myck.Append(key, nv)
 					last = NextValue(last, nv)
 					j++
 				} else {
-					// log.Printf("%d: client new get %v\n", cli, key)
+				//	 log.Printf("%d: client new get %v\n", cli, key)
 					v := myck.Get(key)
 					if v != last {
 						log.Fatalf("get wrong value, key %v, wanted:\n%v\n, got\n%v\n", key, last, v)
 					}
 				}
+				time.After(electionTimeout)
 			}
 		})
 
@@ -181,15 +182,16 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 		atomic.StoreInt32(&done_partitioner, 1) // tell partitioner to quit
 
 		if partitions {
-			// log.Printf("wait for partitioner\n")
+			// log.Printf(".......................wait for partitioner........................\n")
 			<-ch_partitioner
+			// log.Printf("..........................partitioner return .........................\n")
 			// reconnect network and submit a request. A client may
 			// have submitted a request in a minority.  That request
 			// won't return until that server discovers a new term
 			// has started.
 			cfg.ConnectAll()
 			// wait for a while so that we have a new term
-			time.Sleep(electionTimeout)
+			time.Sleep(electionTimeout*4)
 		}
 
 		if crash {
@@ -208,15 +210,15 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 			cfg.ConnectAll()
 		}
 
-		// log.Printf("wait for clients\n")
+		log.Printf("..................wait for clients.................\n")
 		for i := 0; i < nclients; i++ {
-			// log.Printf("read from clients %d\n", i)
+			log.Printf("read from clients %d\n", i)
 			j := <-clnts[i]
 			if j < 10 {
 				log.Printf("Warning: client %d managed to perform only %d put operations in 1 sec?\n", i, j)
 			}
 			key := strconv.Itoa(i)
-			// log.Printf("Check %v for client %d\n", j, i)
+			log.Printf("Check %v for client %d\n", j, i)
 			v := ck.Get(key)
 			checkClntAppends(t, i, v, j)
 		}
@@ -273,8 +275,9 @@ func TestUnreliableOneKey(t *testing.T) {
 	for i := 0; i < nclient; i++ {
 		counts = append(counts, upto)
 	}
-
+	time.After(electionTimeout * 4)
 	vx := ck.Get("k")
+	time.After(electionTimeout * 4)
 	checkConcurrentAppends(t, vx, counts)
 
 	fmt.Printf("  ... Passed\n")

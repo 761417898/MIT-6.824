@@ -47,16 +47,19 @@ func (ck *Clerk) Get(key string) string {
 	args.Id = ck.id
 	args.ReqId = ck.reqId
 	var replys GetReply
-	for i := 0; i < len(ck.servers); i++ {	
+	replys.IsSuccess = false
+	for {
+		for i := 0; i < len(ck.servers); i++ {	
 		ok := ck.servers[i].Call("RaftKV.Get", &args, &replys)
 		if ok {
 			if replys.IsSuccess {
 				return replys.Value
 			}
 		}
+		}
 	}
 	// You will have to modify this function.
-	return ""
+	
 }
 
 //
@@ -79,12 +82,15 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 	args.Value = value
 	args.Id = ck.id
 	args.ReqId = ck.reqId
-	for i := 0; i < len(ck.servers); i++ {	
+	replys.IsSuccess = false
+	for {
+		for i := 0; i < len(ck.servers); i++ {	
 		ok := ck.servers[i].Call("RaftKV.PutAppend", &args, &replys)
 		if ok {
 			if replys.IsSuccess {
 				return
 			}
+		}
 		}
 	}
 }
