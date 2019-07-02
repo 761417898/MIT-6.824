@@ -52,7 +52,7 @@ func (kv *RaftKV) writeToLog(entry Op) bool {
 	}
 	fmt.Println("client : ", entry.Id, ", reqId : ", entry.ReqId, ", ", entry.PutAppend, ", key-value : ", entry.Key, " ", entry.Value)
 	clientId := entry.Id
-	reqId := entry.ReqId
+	//reqId := entry.ReqId
 	
 	kv.mu.Lock()
 	ch,ok := kv.chs[clientId]
@@ -64,13 +64,8 @@ func (kv *RaftKV) writeToLog(entry Op) bool {
 	select {
 		case <- time.After(time.Duration(5000) * time.Millisecond):
 			return false
-		case <- kv.chs[clientId]:
-			kv.mu.Lock()
-			if reqId > kv.order[clientId] {
-				kv.order[clientId] = reqId
-			}
-			kv.mu.Unlock()
-			return true		
+		case op := <- kv.chs[clientId]:
+			return entry == op		
 	}
 }
 
@@ -171,20 +166,29 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 			reqId := op.ReqId
 			
 			kv.mu.Lock()
+			
+			if reqId > kv.order[clientId] {
+				kv.apply(op)
+				kv.order[clientId] = reqId
+			}
+			
 			ch,ok := kv.chs[clientId]
 			if !ok {
 				ch = make(chan Op,1)
 				kv.chs[clientId] = ch
 			}
 			
-			if reqId > kv.order[clientId] {
-				kv.apply(op)
-				log.Println(kv.me, " LOG APPLY : ", "op.id : ", op.Id,  " op.reqId ", op.ReqId , "type", op.PutAppend)
+			
+			
+			log.Println(kv.me, " LOG APPLY : ", "op.id : ", op.Id,  " op.reqId ", op.ReqId , " type ", op.PutAppend, " key-value ", op.Key, "-", op.Value)
+			
+			select {
+				case <-kv.chs[clientId]:
+				default:
 			}
-			_, isLeader := kv.rf.GetState()
-			if isLeader {
-				kv.chs[clientId] <- op
-			}
+			kv.chs[clientId] <- op
+				
+			
 			kv.mu.Unlock()
 		}
 	}()

@@ -167,7 +167,7 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 						log.Fatalf("get wrong value, key %v, wanted:\n%v\n, got\n%v\n", key, last, v)
 					}
 				}
-				time.After(electionTimeout)
+			//	time.After(electionTimeout)
 			}
 		})
 
@@ -191,7 +191,7 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 			// has started.
 			cfg.ConnectAll()
 			// wait for a while so that we have a new term
-			time.Sleep(electionTimeout*4)
+			time.Sleep(electionTimeout*2)
 		}
 
 		if crash {
@@ -232,7 +232,7 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 		}
 	}
 
-	fmt.Printf("  ... Passed\n")
+	fmt.Printf("  ...................................................................................................... Passed\n")
 }
 
 func TestBasic(t *testing.T) {
