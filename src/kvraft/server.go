@@ -8,6 +8,7 @@ import (
 	"sync"
 	"fmt"
 	"time"
+	"bytes"
 )
 
 const Debug = 0
@@ -160,36 +161,52 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	go func() {
 		for {
 			applyCh := <- kv.applyCh
-			op := applyCh.Command.(Op)
-			
-			clientId := op.Id
-			reqId := op.ReqId
-			
-			kv.mu.Lock()
-			
-			if reqId > kv.order[clientId] {
-				kv.apply(op)
-				kv.order[clientId] = reqId
+			if !applyCh.UseSnapshot {
+				log.Println("DEBUG", kv.me, "--", applyCh.Index)	
+				op := applyCh.Command.(Op)		
+				clientId := op.Id
+				reqId := op.ReqId	
+				kv.mu.Lock()	
+				if reqId > kv.order[clientId] {
+					kv.apply(op)
+					kv.order[clientId] = reqId
+				}
+				ch,ok := kv.chs[clientId]
+				if !ok {
+					ch = make(chan Op,1)
+					kv.chs[clientId] = ch
+				}		
+				log.Println(kv.me, " LOG APPLY : ", "op.id : ", op.Id,  " op.reqId ", op.ReqId , " type ", op.PutAppend, " key-value ", op.Key, "-", op.Value)	
+				select {
+					case <-kv.chs[clientId]:
+					default:
+				}
+				kv.chs[clientId] <- op	
+				if maxraftstate != -1 && kv.rf.GetPerisistSize() > maxraftstate {
+					 log.Println("StartSnapshot...")
+					 w := new(bytes.Buffer)
+					 e := gob.NewEncoder(w)
+				  	 e.Encode(kv.db)
+					 e.Encode(kv.order)
+					 data := w.Bytes()
+					 kv.rf.StartSnapshot(data, applyCh.Index)
+				}
+				kv.mu.Unlock()
+			} else {
+				kv.mu.Lock()
+				r := bytes.NewBuffer(applyCh.Snapshot)
+				d := gob.NewDecoder(r)
+				var lastIncludeIndex int
+				var lastIncludeTerm int
+				d.Decode(&lastIncludeIndex)
+				d.Decode(&lastIncludeTerm)
+				d.Decode(&kv.db)
+				d.Decode(&kv.order)
+				if kv.me == 2 {
+					log.Println("index2 debug ", lastIncludeIndex, " ", lastIncludeTerm)
+				}
+				kv.mu.Unlock()
 			}
-			
-			ch,ok := kv.chs[clientId]
-			if !ok {
-				ch = make(chan Op,1)
-				kv.chs[clientId] = ch
-			}
-			
-			
-			
-			log.Println(kv.me, " LOG APPLY : ", "op.id : ", op.Id,  " op.reqId ", op.ReqId , " type ", op.PutAppend, " key-value ", op.Key, "-", op.Value)
-			
-			select {
-				case <-kv.chs[clientId]:
-				default:
-			}
-			kv.chs[clientId] <- op
-				
-			
-			kv.mu.Unlock()
 		}
 	}()
 	return kv

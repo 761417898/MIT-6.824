@@ -386,7 +386,7 @@ func TestPersistConcurrentUnreliable(t *testing.T) {
 	GenericTest(t, "persistconcurunreliable", 5, true, true, false, -1)
 }
 
-func TestPersistPartition(t *testing.T) {
+func TestPersistPartition1(t *testing.T) {
 	fmt.Printf("Test: persistence with concurrent clients and repartitioning servers...\n")
 	GenericTest(t, "persistpart", 5, false, true, true, -1)
 }
@@ -431,11 +431,12 @@ func TestSnapshotRPC(t *testing.T) {
 	if cfg.LogSize() > 2*maxraftstate {
 		t.Fatalf("logs were not trimmed (%v > 2*%v)", cfg.LogSize(), maxraftstate)
 	}
-
+<-time.After(electionTimeout*5)
 	// now make group that requires participation of
 	// lagging server, so that it has to catch up.
 	cfg.partition([]int{0, 2}, []int{1})
 	{
+		<-time.After(10*time.Second)
 		ck1 := cfg.makeClient([]int{0, 2})
 		ck1.Put("c", "C")
 		ck1.Put("d", "D")
@@ -444,10 +445,13 @@ func TestSnapshotRPC(t *testing.T) {
 		check(t, ck1, "1", "1")
 		check(t, ck1, "49", "49")
 	}
+<-time.After(electionTimeout * 2)
+log.Println(".....partition test ok....")
+<-time.After(electionTimeout * 1)
 
 	// now everybody
 	cfg.partition([]int{0, 1, 2}, []int{})
-
+<-time.After(electionTimeout * 5)
 	ck.Put("e", "E")
 	check(t, ck, "c", "C")
 	check(t, ck, "e", "E")
