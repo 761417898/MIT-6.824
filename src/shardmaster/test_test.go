@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// import "time"
+import "time"
 import "fmt"
 
 func check(t *testing.T, groups []int, ck *Clerk) {
@@ -21,7 +21,6 @@ func check(t *testing.T, groups []int, ck *Clerk) {
 			t.Fatalf("missing group %v", g)
 		}
 	}
-
 	// any un-allocated shards?
 	if len(groups) > 0 {
 		for s, g := range c.Shards {
@@ -305,7 +304,7 @@ func TestMulti(t *testing.T) {
 	}
 
 	fmt.Printf("  ... Passed\n")
-
+time.Sleep(60 * time.Second)
 	fmt.Printf("Test: Concurrent multi leave/join ...\n")
 
 	const npara = 10
