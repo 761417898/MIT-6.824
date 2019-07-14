@@ -644,7 +644,7 @@ func TestPersist32C(t *testing.T) {
 	cfg.crash1((leader + 0) % servers)
 	cfg.crash1((leader + 1) % servers)
 	cfg.connect((leader + 2) % servers)
-<- time.After(time.Duration(1550) * time.Millisecond)		
+<- time.After(time.Duration(1550) * time.Millisecond)
 	cfg.start1((leader + 0) % servers)
 	cfg.connect((leader + 0) % servers)
 <- time.After(time.Duration(1550) * time.Millisecond)	
@@ -740,18 +740,20 @@ func TestUnreliableAgree2C(t *testing.T) {
 			wg.Add(1)
 			go func(iters, j int) {
 				defer wg.Done()
+				<- time.After(time.Duration(50) * time.Millisecond)
 				cfg.one((100*iters)+j, 1)
 			}(iters, j)
 		}
+		<- time.After(time.Duration(50) * time.Millisecond)
 		cfg.one(iters, 1)
 	}
 
 	cfg.setunreliable(false)
 
 	wg.Wait()
-
+	<- time.After(time.Duration(20000) * time.Millisecond)
 	cfg.one(100, servers)
-
+	<- time.After(time.Duration(2000) * time.Millisecond)
 	fmt.Printf("  ... Passed\n")
 }
 
@@ -890,6 +892,7 @@ func internalChurn(t *testing.T, unreliable bool) {
 				cfg.start1(i)
 			}
 			cfg.connect(i)
+			<- time.After(time.Duration(15500) * time.Millisecond)		
 		}
 
 		if (rand.Int() % 1000) < 200 {
@@ -913,8 +916,10 @@ func internalChurn(t *testing.T, unreliable bool) {
 			cfg.start1(i)
 		}
 		cfg.connect(i)
+		
 	}
-
+	fmt.Println("**************************************** wait a long time ***********************************************************8")
+	<- time.After(time.Duration(40000) * time.Millisecond)		
 	atomic.StoreInt32(&stop, 1)
 
 	values := []int{}
@@ -927,9 +932,9 @@ func internalChurn(t *testing.T, unreliable bool) {
 	}
 
 	time.Sleep(RaftElectionTimeout)
-
+<- time.After(time.Duration(20050) * time.Millisecond)		
 	lastIndex := cfg.one(rand.Int(), servers)
-
+<- time.After(time.Duration(1550) * time.Millisecond)		
 	really := make([]int, lastIndex+1)
 	for index := 1; index <= lastIndex; index++ {
 		v := cfg.wait(index, servers, -1)
