@@ -6,6 +6,9 @@ import "labrpc"
 import "raft"
 import "sync"
 import "encoding/gob"
+import "shardmaster"
+import "time"
+import "log"
 
 
 
@@ -13,6 +16,11 @@ type Op struct {
 	// Your definitions here.
 	// Field names must start with capital letters,
 	// otherwise RPC will break.
+	Key      string
+	Value    string
+	Op       string // "Get", "Put" or "Append"
+	ClientId int64  // client id
+	SeqNo  int    // request sequence number
 }
 
 type ShardKV struct {
@@ -26,15 +34,73 @@ type ShardKV struct {
 	maxraftstate int // snapshot if log grows this big
 
 	// Your definitions here.
+	mck *shardmaster.Clerk
+	order map[int64]int //record reqId of each client
+	chs map[int64]chan Op
+	
+	db map[string]string
+}
+
+func (kv *ShardKV) writeToLog(entry Op) bool {
+	_, _, isLeader := kv.rf.Start(entry)
+	if !isLeader {
+		return false
+	}
+	//fmt.Println("client : ", entry.Id, ", reqId : ", entry.ReqId, ", ", entry.PutAppend, ", key-value : ", entry.Key, " ", entry.Value)
+	clientId := entry.ClientId
+	//reqId := entry.ReqId
+	
+	kv.mu.Lock()
+	ch,ok := kv.chs[clientId]
+	if !ok {
+		ch = make(chan Op,1)
+		kv.chs[clientId] = ch
+	}
+	kv.mu.Unlock()
+	select {
+		case <- time.After(time.Duration(500) * time.Millisecond):
+			return false
+		case op := <- kv.chs[clientId]:
+			return entry == op		
+	}
 }
 
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) {
 	// Your code here.
+	var op Op
+	op.ClientId = args.ClientId
+	op.Key = args.Key
+	op.Op = "Get"
+	op.SeqNo = args.ReqId
+	ok := kv.writeToLog(op)
+	if ok {
+		reply.WrongLeader = false
+		reply.Value = kv.db[args.Key]
+	} else {
+		reply.WrongLeader = true
+		reply.Value = ""
+	}
 }
 
 func (kv *ShardKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	// Your code here.
+	var op Op
+	op.ClientId = args.ClientId
+	op.Key = args.Key
+	op.SeqNo = args.ReqId
+	op.Value = args.Value
+	if args.Op == "Put" {
+		op.Op = "Put"
+	} else { //"Append"
+		op.Op = "Append"
+	}
+	ok := kv.writeToLog(op)
+	if ok {
+		reply.WrongLeader = false
+	} else {
+		reply.WrongLeader = true
+	}
 }
 
 //
@@ -48,6 +114,55 @@ func (kv *ShardKV) Kill() {
 	// Your code here, if desired.
 }
 
+func (kv *ShardKV) apply(op Op) {
+	if op.Op == "Put" {
+		kv.db[op.Key] = op.Value
+	} else if op.Op == "Append" {
+		kv.db[op.Key] = kv.db[op.Key] + op.Value
+	} else {
+		
+	}
+}
+
+func (kv *ShardKV) applyDaemon() {
+	for {
+		applyCh := <- kv.applyCh
+		if applyCh.UseSnapshot {
+			kv.mu.Lock()
+			
+			kv.mu.Unlock()
+			continue
+		} else {
+			// have client's request? must filter duplicate command
+			switch cmd := applyCh.Command.(type) {
+				case Op:
+					op := cmd
+					clientId := op.ClientId
+					reqId := op.SeqNo
+					log.Println(kv.gid, kv.me, " LOG APPLY ", op.Op, op.Key, op.Value)
+					kv.mu.Lock()	
+					if reqId > kv.order[clientId] {
+						
+						kv.apply(op)
+						kv.order[clientId] = reqId
+					}
+					ch,ok := kv.chs[clientId]
+					if !ok {
+						ch = make(chan Op,1)
+						kv.chs[clientId] = ch
+					}		
+					select {
+						case <-kv.chs[clientId]:
+						default:
+					}
+					kv.chs[clientId] <- op	
+					kv.mu.Unlock()
+				default:
+			}
+		}
+		
+	}
+}
 
 //
 // servers[] contains the ports of the servers in this group.
@@ -88,7 +203,7 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister,
 	kv.make_end = make_end
 	kv.gid = gid
 	kv.masters = masters
-
+	kv.mck = shardmaster.MakeClerk(masters)
 	// Your initialization code here.
 
 	// Use something like this to talk to the shardmaster:
@@ -97,6 +212,11 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister,
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 
+	kv.order = make(map[int64]int)  
+	kv.chs = make(map[int64]chan Op)
+	kv.db = make(map[string]string)
+
+	go kv.applyDaemon()
 
 	return kv
 }

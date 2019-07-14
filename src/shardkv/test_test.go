@@ -27,7 +27,7 @@ func TestStaticShards(t *testing.T) {
 
 	cfg.join(0)
 	cfg.join(1)
-
+fmt.Printf("join ok............................................. ...\n")
 	n := 10
 	ka := make([]string, n)
 	va := make([]string, n)
@@ -35,6 +35,7 @@ func TestStaticShards(t *testing.T) {
 		ka[i] = strconv.Itoa(i) // ensure multiple shards
 		va[i] = randstring(20)
 		ck.Put(ka[i], va[i])
+		//fmt.Printf(ka[i], va[i], " put ok............................................. ...\n")
 	}
 	for i := 0; i < n; i++ {
 		check(t, ck, ka[i], va[i])
@@ -62,7 +63,7 @@ func TestStaticShards(t *testing.T) {
 		select {
 		case <-ch:
 			ndone += 1
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Second * 20):
 			done = true
 			break
 		}

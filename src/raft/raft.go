@@ -611,7 +611,7 @@ func (rf *Raft) broadcastAppendEntries() {
 	}
 	if rf.commitIndex != oldCommitIndex {
 		//fmt.Println("DEBUG:", rf.commitIndex, " ", oldCommitIndex)
-		fmt.Println("-------------------------------  LOG COMMIT :", rf.commitIndex, " lastapply ", rf.lastApplied, "--------------------------------------------")
+		//fmt.Println("-------------------------------  LOG COMMIT :", rf.commitIndex, " lastapply ", rf.lastApplied, "--------------------------------------------")
 		rf.logApply <- 0
 	}
 	for i := 0; i < len(rf.peers); i++ {
