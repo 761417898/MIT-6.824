@@ -131,7 +131,7 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 	const nservers = 5
 	cfg := make_config(t, tag, nservers, unreliable, maxraftstate)
 	defer cfg.cleanup()
-<- time.After(time.Second * 2)
+
 	ck := cfg.makeClient(cfg.All())
 
 	done_partitioner := int32(0)
@@ -232,7 +232,7 @@ func GenericTest(t *testing.T, tag string, nclients int, unreliable bool, crash 
 			}
 		}
 	}
-
+<- time.After(time.Second * 3	)
 	fmt.Printf("  ...................................................................................................... Passed\n")
 }
 
@@ -306,7 +306,7 @@ func TestOnePartition(t *testing.T) {
 
 	ckp1.Put("1", "14")
 	check(t, ckp1, "1", "14")
-
+time.Sleep(1*time.Second)
 	fmt.Printf("  ... Passed\n")
 
 	done0 := make(chan bool)
@@ -333,7 +333,7 @@ func TestOnePartition(t *testing.T) {
 	check(t, ckp1, "1", "14")
 	ckp1.Put("1", "16")
 	check(t, ckp1, "1", "16")
-
+time.Sleep(1*time.Second)
 	fmt.Printf("  ... Passed\n")
 
 	fmt.Printf("Test: Completion after heal ...\n")

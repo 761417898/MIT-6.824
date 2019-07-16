@@ -3,6 +3,7 @@ package raftkv
 import "labrpc"
 import "crypto/rand"
 import "math/big"
+//import "fmt"
 
 
 type Clerk struct {
@@ -52,7 +53,7 @@ func (ck *Clerk) Get(key string) string {
 		for i := 0; i < len(ck.servers); i++ {	
 		ok := ck.servers[i].Call("RaftKV.Get", &args, &replys)
 		if ok {
-			if replys.IsSuccess {
+			if replys.IsSuccess {		
 				return replys.Value
 			}
 		}

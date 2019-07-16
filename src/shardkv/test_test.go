@@ -63,7 +63,7 @@ fmt.Printf("join ok............................................. ...\n")
 		select {
 		case <-ch:
 			ndone += 1
-		case <-time.After(time.Second * 20):
+		case <-time.After(time.Second * 30):
 			done = true
 			break
 		}
@@ -105,7 +105,7 @@ func TestJoinLeave(t *testing.T) {
 	}
 
 	cfg.join(1)
-
+time.Sleep(50*time.Second)
 	for i := 0; i < n; i++ {
 		check(t, ck, ka[i], va[i])
 		x := randstring(5)
@@ -123,7 +123,7 @@ func TestJoinLeave(t *testing.T) {
 	}
 
 	// allow time for shards to transfer.
-	time.Sleep(1 * time.Second)
+	time.Sleep(50 * time.Second)
 
 	cfg.checklogs()
 	cfg.ShutdownGroup(0)
@@ -131,7 +131,7 @@ func TestJoinLeave(t *testing.T) {
 	for i := 0; i < n; i++ {
 		check(t, ck, ka[i], va[i])
 	}
-
+time.Sleep(30 * time.Second)
 	fmt.Printf("  ... Passed\n")
 }
 

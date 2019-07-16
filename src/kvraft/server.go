@@ -43,30 +43,30 @@ type RaftKV struct {
 	// Your definitions here.
 	db map[string]string
 	order map[int64]int //record reqId of each client
-	chs map[int64]chan Op
+	chs map[int]chan Op
 }
 
 func (kv *RaftKV) writeToLog(entry Op) bool {
-	_, _, isLeader := kv.rf.Start(entry)
+	logIndex, _, isLeader := kv.rf.Start(entry)
 	if !isLeader {
 		return false
 	}
 	fmt.Println("client : ", entry.Id, ", reqId : ", entry.ReqId, ", ", entry.PutAppend, ", key-value : ", entry.Key, " ", entry.Value)
-	clientId := entry.Id
+	//clientId := entry.Id
 	//reqId := entry.ReqId
 	
 	kv.mu.Lock()
-	ch,ok := kv.chs[clientId]
+	ch,ok := kv.chs[logIndex]
 	if !ok {
 		ch = make(chan Op,1)
-		kv.chs[clientId] = ch
+		kv.chs[logIndex] = ch
 	}
 	kv.mu.Unlock()
 	select {
-		case <- time.After(time.Duration(5000) * time.Millisecond):
+		case <- time.After(time.Duration(500) * time.Millisecond):
 			return false
-		case op := <- kv.chs[clientId]:
-			return entry == op		
+		case <- kv.chs[logIndex]:
+			return true	
 	}
 }
 
@@ -151,7 +151,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv.maxraftstate = maxraftstate
 	kv.db = make(map[string]string)
 	kv.order = make(map[int64]int)
-	kv.chs = make(map[int64]chan Op)
+	kv.chs = make(map[int]chan Op)
 	// You may need initialization code here.
 
 	kv.applyCh = make(chan raft.ApplyMsg)
@@ -166,22 +166,19 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 				op := applyCh.Command.(Op)		
 				clientId := op.Id
 				reqId := op.ReqId	
+				logIndex := applyCh.Index
 				kv.mu.Lock()	
 				if reqId > kv.order[clientId] {
 					kv.apply(op)
 					kv.order[clientId] = reqId
+					log.Println(kv.me, " LOG APPLY : ", "op.id : ", op.Id,  " op.reqId ", op.ReqId , " type ", op.PutAppend, " key-value ", op.Key, "-", op.Value)	
 				}
-				ch,ok := kv.chs[clientId]
-				if !ok {
-					ch = make(chan Op,1)
-					kv.chs[clientId] = ch
-				}		
-				log.Println(kv.me, " LOG APPLY : ", "op.id : ", op.Id,  " op.reqId ", op.ReqId , " type ", op.PutAppend, " key-value ", op.Key, "-", op.Value)	
-				select {
-					case <-kv.chs[clientId]:
-					default:
-				}
-				kv.chs[clientId] <- op	
+				
+				if ch, ok := kv.chs[logIndex]; ok && ch != nil {
+					close(ch)
+					delete(kv.chs, logIndex)
+				}			
+				
 				if maxraftstate != -1 && kv.rf.GetPerisistSize() > maxraftstate {
 					 log.Println("StartSnapshot...")
 					 w := new(bytes.Buffer)
