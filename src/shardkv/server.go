@@ -9,6 +9,7 @@ import "encoding/gob"
 import "shardmaster"
 import "time"
 import "log"
+import "bytes"
 
 type Op struct {
 	// Your definitions here.
@@ -282,7 +283,17 @@ func (kv *ShardKV) applyDaemon() {
 		applyCh := <- kv.applyCh
 		if applyCh.UseSnapshot {
 			kv.mu.Lock()
-			
+			r := bytes.NewBuffer(applyCh.Snapshot)
+			d := gob.NewDecoder(r)
+			var lastIncludeIndex int
+			var lastIncludeTerm int
+			d.Decode(&lastIncludeIndex)
+			d.Decode(&lastIncludeTerm)
+			d.Decode(&kv.db)
+			d.Decode(&kv.order)
+			d.Decode(&kv.configs)
+			d.Decode(&kv.dataMigrate)
+			d.Decode(&kv.dataMigrateDone)
 			kv.mu.Unlock()
 			continue
 		} else {
@@ -319,7 +330,18 @@ func (kv *ShardKV) applyDaemon() {
 					for k,v := range data {
 						kv.db[k] = v
 					}
-				default:
+			}
+			if kv.maxraftstate != -1 && kv.rf.GetPerisistSize() > kv.maxraftstate {
+				log.Println("StartSnapshot...")
+				w := new(bytes.Buffer)
+				e := gob.NewEncoder(w)
+				e.Encode(kv.db)
+				e.Encode(kv.order)
+				e.Encode(kv.configs)
+				e.Encode(kv.dataMigrate)
+				e.Encode(kv.dataMigrateDone)
+				data := w.Bytes()
+				kv.rf.StartSnapshot(data, applyCh.Index)
 			}
 		}
 		
