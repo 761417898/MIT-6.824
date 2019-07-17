@@ -13,7 +13,7 @@ There are still some tests that fail. However, the framework for Disdributed K-V
 
 Some unfinished problems like following
 
-- Add pre-vote are to prevent lost followers from reconnecting.
+- Add pre-vote stage to prevent lost followers from reconnecting.
 
 - Follows need to add their nextIndex in reply to AppendEntry to speed up the process of Log Distribution.
   
