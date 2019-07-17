@@ -10,4 +10,7 @@ https://pdos.csail.mit.edu/6.824/index.html
 
 There are still some tests that fail. However, the framework for Disdributed K-V Stroage has been finished.
 
-The following parts need to be imporved
+The some serious problems in Raft implement need to be solved
+  ·　Add pre-vote are to prevent lost followers from reconnecting.
+  ·　Follows need to add their nextIndex in reply to AppendEntry to speed up the process of Log Distribution.
+  
