@@ -8,7 +8,7 @@ https://pdos.csail.mit.edu/6.824/index.html
 
 - [OK] Lab 4: Sharded Key/Value Service
 
-主要的框架已经实现完成，项目逻辑结构见 项目构建.docx，但lab4未实现多种容错处理。
+主要的框架已经实现完成，项目逻辑结构见 项目总结.docx，但lab4只实现了最基本的功能，lab2 lab3个别test未通过。
 
 一些不好的或要改进的点如下：
 
@@ -18,6 +18,4 @@ https://pdos.csail.mit.edu/6.824/index.html
 
 - client在每次发送get/put/append等请求时都需要先获取最新的集群配置信息，可以在每个raft集群的leader上加个转发的功能。
 
-- lab4的容错怎么实现，单个节点挂掉可以通过raft,若某个raft集群挂掉怎么解决？可以把先前的client当做一个中间节点，用来
-  管理集群变更信息，即周期性的向每个集群发送心跳包。
   
