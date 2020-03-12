@@ -1,5 +1,12 @@
 package raft
 
+/*
+ * 成员变更分两步，提交两条日志，并执行。
+ * 1. 包含旧集群所有成员，包含新集群所有成员。在此应用之后的quorum要求既在旧集群是大多数派，又在新集群是大多数派。
+ * 2. 包含新集群所有成员
+ * 避免了脑裂。
+ */
+
 //
 // this is an outline of the API that raft must expose to
 // the service (or tester). see comments below for
@@ -585,6 +592,14 @@ func (rf *Raft) broadcastRequestVotes() {
 	}
 }
 
+/*
+ * 2. 主要关注两个变量，nextIndex(要发给该结点的下一条日志，初始化为主节点日志的最后一条+1，即刚开始默认全部同步了)和
+ * matchIndex（记录所有follow节点的日志复制到哪了），只有某条日志已复制到大多数节点，才可以被提交。
+ * 
+ *	提交也有一条限制，即主节点只能提交本周期内的log
+ *
+ */
+
 func (rf *Raft) broadcastAppendEntries() {
 	//外面已经加锁了
 	//fmt.Println(rf.me, rf.currentTerm, " send appendentry")
@@ -666,6 +681,14 @@ func (rf *Raft) broadcastAppendEntries() {
 		go rf.sendAppendEntries(server, args, &reply)
 	}
 }
+
+/*
+ * 1.主节点选举，每个follow在超时时间内没受到心跳(appendEntries)，则变为candidate,term++,投票给自己，并广播requestVotes
+ *	收到广播的节点，如果term小于candidate，则修正term并投票给他，如果term等于它且投过票，或者term大于它，则不理睬。
+ *	节点处于candidate也要有超时限制，超时后则重新变为candidate,广播请求。   当节点受到大多数票时，成为leader，并立即广播心跳
+ *  
+ *  投票有个安全性限制，即自己的日志没他的新，才会投票给他。也就是比较最后一条日志的term，term相等就比较index。
+ */
 
 func (rf *Raft) electionDaemon() {
 	for {	

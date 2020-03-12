@@ -50,6 +50,7 @@ func TestReElection2A(t *testing.T) {
 	leader1 := cfg.checkOneLeader()
 
 	// if the leader disconnects, a new one should be elected.
+	//挂掉一个节点，剩余两个节点可以选出新的leader
 	fmt.Println("-------------------------------  one leader disconn ------------------")
 	cfg.disconnect(leader1)
 	cfg.checkOneLeader()
@@ -182,6 +183,7 @@ fmt.Printf("repair disconnect\n")
 	if ok2 == false {
 		t.Fatalf("leader2 rejected Start()")
 	}
+	//新的主节点可能是刚才掉了的，也可能是刚才没掉的(多一条日志，不过现在才能提交)
 	if index2 < 2 || index2 > 3 {
 		t.Fatalf("unexpected index %v", index2)
 	}

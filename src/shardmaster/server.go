@@ -7,7 +7,14 @@ import "sync"
 import "time"
 import "encoding/gob"
 
-
+/*
+ * type Config struct {
+ *	Num    int              // config number
+ *	Shards [NShards]int     // shard -> gid
+ *	Groups map[int][]string // gid -> servers[]
+ * }
+ *
+ */
 type ShardMaster struct {
 	mu      sync.Mutex
 	me      int
@@ -145,6 +152,12 @@ type Status struct {
 
 // should only be called when holding the lock
 // target: minimum shard movement
+/* 采用固定分区/片的方案实现分区/片再平衡 
+ * 这里不要分区数shards对组数groups取模来决定 分区在哪个节点，因为这样在新加入组时会有较多数据迁移
+ * 目的两点
+ * 1.最小化迁移（保证平衡的前提下）,对应如下的reblance过程
+ * 2.数据迁移的过程中可用。
+ */
 func (sm *ShardMaster) rebalance(config *Config) {
 //核心就两点：均匀分布，集群变化时数据移动尽可能少。	
 //这里用的最基本的方法	
@@ -172,6 +185,12 @@ func (sm *ShardMaster) rebalance(config *Config) {
 	}
 
 	// info
+	/*
+	*  type Status struct {
+	*    group, count int
+	*  }
+	*
+	*/
 	var extra []Status
 	var lacking []Status
 

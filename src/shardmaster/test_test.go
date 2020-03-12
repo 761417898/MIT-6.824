@@ -87,7 +87,7 @@ func TestBasic(t *testing.T) {
 
 	cfa := make([]Config, 6)
 	cfa[0] = ck.Query(-1)
-time.Sleep(60*time.Second)
+//time.Sleep(1*time.Second)
 	check(t, []int{}, ck)
 
 	var gid1 int = 1
